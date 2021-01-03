@@ -1,0 +1,38 @@
+menu "GoPro Wifi Configuration"
+
+    config GOPRO_WIFI_SSID
+        string "GoPro SSID"
+        default "SparkNet"
+        help
+            The SSID of the GOPRO to connect to
+
+    config GOPRO_WIFI_PASSWORD
+        string "GoPro Password"
+        default "secret"
+        help
+            The secret to connect to the gopro
+
+    config GOPRO_MAXIMUM_RETRY
+        int "Maximum WiFi connection attempts"
+        range 0 50
+        default 5
+        help
+            Amount of retries to connect to WiFi network
+
+            Set to 0 for indefinite retries
+
+endmenu
+
+menu "Generic Configuration"
+    config BLINK_GPIO
+        int "Blink GPIO number"
+        range 0 34
+        default 2
+        help
+            GPIO number (IOxx) to blink on and off.
+
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to blink.
+
+            GPIOs 35-39 are input-only so cannot be used as outputs.
+
+endmenu

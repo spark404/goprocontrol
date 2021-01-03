@@ -1,0 +1,16 @@
+menu "MAVLinkV2 Configuration"
+    config MAVLINK_SYSTEM_ID
+        int "System ID"
+        range 1 255
+        default 2
+        help
+            Unique system id for this device
+
+    config MAVLINK_COMPONENT_ID
+        int "Component ID (a MAV_COMPONENT value)"
+        range 1 255
+        default 100
+        help
+            Default 100 (Camera #1)
+
+endmenu

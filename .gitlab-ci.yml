@@ -1,0 +1,14 @@
+image: espressif/idf:v4.1
+
+stages:
+  - build
+
+build_firmware:
+  stage: build
+  script: 
+    - idf.py build
+  artifacts:
+    paths:
+      - build/bootloader/bootloader.bin
+      - build/partition_table/partition-table.bin
+      - build/poleos.bin
