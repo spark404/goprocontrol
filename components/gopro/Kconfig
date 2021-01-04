@@ -1,3 +1,24 @@
-menu "GoPro Configuration"
+menu "GoPro Wifi Configuration"
+
+    config GOPRO_WIFI_SSID
+        string "GoPro SSID"
+        default "SparkNet"
+        help
+            The SSID of the GOPRO to connect to
+
+    config GOPRO_WIFI_PASSWORD
+        string "GoPro Password"
+        default "secret"
+        help
+            The secret to connect to the gopro
+
+    config GOPRO_MAC_ADDRESS
+        string "MAC"
+        default ""
+        help
+            The mac address of the GoPro. Can be set here and it will be retrieved when
+            the camera is connected for the first time.
+
+            If set this will be used to send the magic WOL packet
 
 endmenu

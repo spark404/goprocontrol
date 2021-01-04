@@ -1,5 +1,3 @@
-#include <ctype.h>
-#include <complex.h>
 /**
  * Global define for the Mavlink subsystem
  */
@@ -15,6 +13,7 @@
 
 #include "sdkconfig.h"
 #include "mavlink_v2.h"
+#include "mavlink_camera_callback.h"
 
 #define BUF_SIZE (1024)
 #define RD_BUF_SIZE (BUF_SIZE)
@@ -32,6 +31,12 @@ static QueueHandle_t mavlink_incoming_queue;
 static TaskHandle_t heartbeat_task;
 
 void mavlink_send_camera_info();
+void mavlink_send_camera_settings();
+
+typedef struct {
+    mavlink_camera_callback_handler_t camera_callback;
+} mavlink_callbacks_t;
+static mavlink_callbacks_t mavlink_callbacks;
 
 #include "mavlink_types.h"
 mavlink_system_t mavlink_system = {
@@ -135,23 +140,40 @@ _Noreturn static void mavlink_message_handler(void *pvParameters) {
                     switch (cmd.command) {
                         case MAV_CMD_REQUEST_CAMERA_INFORMATION:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_INFORMATION");
+                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
                             mavlink_send_camera_info();
-                            mavlink_msg_command_ack_send(0, MAV_CMD_REQUEST_CAMERA_INFORMATION, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
                             break;
                         case MAV_CMD_REQUEST_CAMERA_SETTINGS:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_SETTINGS");
+                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
+                            mavlink_send_camera_settings();
                             break;
                         case MAV_CMD_REQUEST_STORAGE_INFORMATION:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_STORAGE_INFORMATION");
+                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
                             break;
                         case MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS");
+                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
                             break;
                         case MAV_CMD_SET_CAMERA_MODE:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_SET_CAMERA_MODE");
+                            cmd_set_mode_t set_mode = {
+                                    .mode = cmd.param2
+                            };
+                            mavlink_camera_callback_t callback = {
+                                    .type = CMD_SET_MODE,
+                                    .cmd_set_mode = set_mode
+                            };
+                            if (mavlink_callbacks.camera_callback(callback, NULL) != CAMERA_OK) {
+                                mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_FAIL, 255, 0, msg.sysid, msg.compid);
+                            } else {
+                                mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
+                            }
                             break;
                         case MAV_CMD_REQUEST_VIDEO_STREAM_INFORMATION:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_VIDEO_STREAM_INFORMATION");
+                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
                             break;
                         default:
                             mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
@@ -175,11 +197,16 @@ void mavlink_send_uart_bytes(mavlink_channel_t chan, const uint8_t *ch, int leng
 }
 
 void mavlink_start_uart_send(mavlink_channel_t chan, int length) {
-
+    // Left blank
 }
 
 void mavlink_end_uart_send(mavlink_channel_t chan, int length) {
+    // Left blank
+}
 
+esp_err_t mavlink_v2_init(mavlink_camera_callback_handler_t mavlink_camera_callback) {
+    mavlink_callbacks.camera_callback = mavlink_camera_callback;
+    return ESP_OK;
 }
 
 esp_err_t enable_mavlink_on_uart() {
@@ -214,6 +241,12 @@ void mavlink_send_camera_info() {
     strcpy((char *) vendor, "ESP32-GOPRO");
     strcpy((char *) model, "HERO 5");
 
+    uint32_t flags =
+            CAMERA_CAP_FLAGS_CAPTURE_VIDEO |
+                    CAMERA_CAP_FLAGS_CAPTURE_IMAGE |
+                    CAMERA_CAP_FLAGS_HAS_MODES |
+                    CAMERA_CAP_FLAGS_HAS_BASIC_ZOOM;
+
     mavlink_msg_camera_information_send(
             0,
             0,
@@ -226,8 +259,18 @@ void mavlink_send_camera_info() {
             1920,
             1080,
             0,
-            ~0u,
+            flags,
             1,
             NULL
     );
+}
+
+void mavlink_send_camera_settings() {
+    mavlink_msg_camera_settings_send(
+            0,
+            0,
+            CAMERA_MODE_IMAGE,
+            0,
+            0
+            );
 }

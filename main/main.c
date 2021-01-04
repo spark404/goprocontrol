@@ -12,11 +12,28 @@
 #include "sdkconfig.h"
 
 #include "blink.h"
-#include "wifi.h"
 #include "mavlink_v2.h"
 #include "gopro.h"
+#include "mavlink_camera_callback.h"
 
 #define TAG "app_main"
+
+static gopro_connection_t connection;
+
+mavlink_camera_err_t camera_callback(mavlink_camera_callback_t callback, void *pvParameters) {
+    switch (callback.type) {
+        case CMD_SET_MODE:
+            if (gopro_setmode(&connection, callback.cmd_set_mode.mode) == ESP_OK) {
+                return CAMERA_OK;
+            } else {
+                return CAMERA_FAIL;
+            }
+            break;
+        default:
+            ESP_LOGW(TAG, "No defined action for callback %d", callback.type);
+            return CAMERA_FAIL;
+    }
+}
 
 _Noreturn void app_main(void) {
     ESP_LOGI(TAG, "[APP] Startup..");
@@ -54,15 +71,12 @@ _Noreturn void app_main(void) {
     ESP_LOGI(TAG, "[APP] Blink Running..");
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
 
+    ESP_LOGI(TAG, "[APP] Starting GOPRO on WiFI");
+    ESP_ERROR_CHECK(gopro_init(&connection));
+
     ESP_LOGI(TAG, "[APP] Starting MAVLINK on UART");
+    ESP_ERROR_CHECK(mavlink_v2_init(camera_callback));
     ESP_ERROR_CHECK(enable_mavlink_on_uart());
-
-    // Connect to GoPro WiFi
-    ESP_ERROR_CHECK(wifi_connect());
-    ESP_LOGI(TAG, "[APP] Wifi Connected..");
-
-    ESP_ERROR_CHECK(gopro_init());
-    ESP_ERROR_CHECK(gopro_get_status());
 
     // No need to start the scheduler, that is taken care of by the ESP SDK
     ESP_LOGI(TAG, "Completed app_main, keep on going on");
@@ -71,3 +85,4 @@ _Noreturn void app_main(void) {
         vTaskDelay((portTickType) portMAX_DELAY);
     }
 }
+
