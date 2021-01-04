@@ -1,4 +1,3 @@
-#include <stdint.h>
 //
 // Created by Hugo Trippaers on 12/09/2020.
 //
@@ -15,6 +14,7 @@
 #include "blink.h"
 #include "wifi.h"
 #include "mavlink_v2.h"
+#include "gopro.h"
 
 #define TAG "app_main"
 
@@ -31,6 +31,7 @@ _Noreturn void app_main(void) {
 
     esp_log_level_set("blink_task", ESP_LOG_WARN);
     esp_log_level_set("mavlink_uart", ESP_LOG_DEBUG);
+    esp_log_level_set("HTTP_CLIENT", ESP_LOG_DEBUG);
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -42,11 +43,6 @@ _Noreturn void app_main(void) {
 
     // Initialize Event Loop
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    // Connect to WiFi (station mode)
-    wifi_connect();
-    ESP_LOGI(TAG, "[APP] Wifi Connected..");
-    ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
 
     xTaskHandle xBlinkTaskHandle;
 
@@ -60,6 +56,13 @@ _Noreturn void app_main(void) {
 
     ESP_LOGI(TAG, "[APP] Starting MAVLINK on UART");
     ESP_ERROR_CHECK(enable_mavlink_on_uart());
+
+    // Connect to GoPro WiFi
+    ESP_ERROR_CHECK(wifi_connect());
+    ESP_LOGI(TAG, "[APP] Wifi Connected..");
+
+    ESP_ERROR_CHECK(gopro_init());
+    ESP_ERROR_CHECK(gopro_get_status());
 
     // No need to start the scheduler, that is taken care of by the ESP SDK
     ESP_LOGI(TAG, "Completed app_main, keep on going on");

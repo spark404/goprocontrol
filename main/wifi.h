@@ -5,6 +5,6 @@
 #ifndef POLEOS_WIFI_H
 #define POLEOS_WIFI_H
 
-void wifi_connect(void);
+esp_err_t wifi_connect(void);
 
 #endif //POLEOS_WIFI_H

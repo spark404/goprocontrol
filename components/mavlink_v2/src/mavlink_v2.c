@@ -29,6 +29,10 @@ static const char *TAG = "mavlink_uart";
 static QueueHandle_t uart0_queue;
 static QueueHandle_t mavlink_incoming_queue;
 
+static TaskHandle_t heartbeat_task;
+
+void mavlink_send_camera_info();
+
 #include "mavlink_types.h"
 mavlink_system_t mavlink_system = {
         CONFIG_MAVLINK_SYSTEM_ID, // System ID (1-255)
@@ -105,29 +109,54 @@ _Noreturn static void uart_event_task(void *pvParameters)
 
 _Noreturn static void mavlink_heartbeat_task(void * pvParameters) {
     for (;;) {
-        mavlink_msg_heartbeat_send(0, MAV_TYPE_CAMERA, 0, 0, 0, MAV_STATE_ACTIVE);
+        mavlink_msg_heartbeat_send(0, MAV_TYPE_CAMERA, MAV_AUTOPILOT_INVALID, MAV_MODE_PREFLIGHT, 0, MAV_STATE_ACTIVE);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
 _Noreturn static void mavlink_message_handler(void *pvParameters) {
     mavlink_message_t msg;
+    mavlink_command_long_t cmd;
 
     for (;;) {
         if (xQueueReceive(mavlink_incoming_queue, (void *) &msg, (portTickType) portMAX_DELAY)) {
             switch (msg.msgid) {
                 case MAVLINK_MSG_ID_HEARTBEAT:
-                    // Hearthbeat, do nothing for now
+                    if (msg.compid == 1 && heartbeat_task == NULL) {
+                        ESP_LOGI(TAG, "Received heartbeat from FlightController, activating heartbeat");
+                        mavlink_system.sysid = msg.sysid;
+                        xTaskCreate(mavlink_heartbeat_task, "mavlink_heartbeat_task", 4096, NULL, 11, &heartbeat_task);
+                    }
                     break;
-                case MAV_CMD_REQUEST_CAMERA_INFORMATION:
-                    // Nothing but sending COMMAND_ACK
-                    mavlink_msg_command_ack_send(0, MAV_CMD_REQUEST_CAMERA_INFORMATION, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
-                    ESP_LOGD(TAG, "Ack request for camera information from component %d of system %d", msg.compid, msg.sysid);
-                    break;
-                //  These messages can be safely ignored
-                case MAVLINK_MSG_ID_PARAM_VALUE:
-                case MAVLINK_MSG_ID_TIMESYNC:
-                case MAVLINK_MSG_ID_STATUSTEXT:
+                case MAVLINK_MSG_ID_COMMAND_LONG:
+                    mavlink_msg_command_long_decode(&msg, &cmd);
+                    ESP_LOGD(TAG, "Command received: (sysid: %d compid: %d msgid: %d) from compid %d, sysid %d",
+                             cmd.target_system, cmd.target_component, cmd.command, msg.compid, msg.sysid);
+                    switch (cmd.command) {
+                        case MAV_CMD_REQUEST_CAMERA_INFORMATION:
+                            ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_INFORMATION");
+                            mavlink_send_camera_info();
+                            mavlink_msg_command_ack_send(0, MAV_CMD_REQUEST_CAMERA_INFORMATION, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
+                            break;
+                        case MAV_CMD_REQUEST_CAMERA_SETTINGS:
+                            ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_SETTINGS");
+                            break;
+                        case MAV_CMD_REQUEST_STORAGE_INFORMATION:
+                            ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_STORAGE_INFORMATION");
+                            break;
+                        case MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS:
+                            ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS");
+                            break;
+                        case MAV_CMD_SET_CAMERA_MODE:
+                            ESP_LOGD(TAG, "Responding to MAV_CMD_SET_CAMERA_MODE");
+                            break;
+                        case MAV_CMD_REQUEST_VIDEO_STREAM_INFORMATION:
+                            ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_VIDEO_STREAM_INFORMATION");
+                            break;
+                        default:
+                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
+                            break;
+                    }
                     break;
                 default:
                     ESP_LOGD(TAG, "Received message with ID %d, sequence: %d from component %d of system %d", msg.msgid,
@@ -165,7 +194,6 @@ esp_err_t enable_mavlink_on_uart() {
     }
 
     xTaskCreate(uart_event_task, "uart_event_task", 4096, NULL, 12, NULL);
-    xTaskCreate(mavlink_heartbeat_task, "mavlink_heartbeat_task", 4096, NULL, 11, NULL);
     xTaskCreate(mavlink_message_handler, "mavlink_message_handler", 4096, NULL, 10, NULL);
 
     return ESP_OK;
@@ -180,3 +208,26 @@ esp_err_t disable_mavlink_on_uart() {
     return ESP_OK;
 }
 
+void mavlink_send_camera_info() {
+    uint8_t vendor[32];
+    uint8_t model[32];
+    strcpy((char *) vendor, "ESP32-GOPRO");
+    strcpy((char *) model, "HERO 5");
+
+    mavlink_msg_camera_information_send(
+            0,
+            0,
+            vendor,
+            model,
+            1,
+            16.4f,
+            1.1f,
+            1.1f,
+            1920,
+            1080,
+            0,
+            ~0u,
+            1,
+            NULL
+    );
+}
