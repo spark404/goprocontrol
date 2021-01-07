@@ -21,6 +21,15 @@ typedef struct {
 } gopro_info_t;
 
 typedef struct {
+    int processing_flag;      //  8
+    int recording_time_ms;    // 13
+    int num_photos_taken;     // 38
+    int num_videos_taken;     // 39
+    int current_mode;         // 43
+    int remaining_free_bytes; // 54
+} gopro_internal_status_t;
+
+typedef struct {
     gopro_callback_type_t type;
     union {
         gopro_info_t gopro_info;

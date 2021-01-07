@@ -58,6 +58,7 @@ esp_err_t gopro_wol_send(char *mac_address) {
     return ESP_OK;
 }
 
+/* This doesn't work on a Hero 5 Black */
 esp_err_t gopro_keepalive_send() {
     ESP_LOGI(TAG, "trying to send keep-alive");
     int addr_family = 0;

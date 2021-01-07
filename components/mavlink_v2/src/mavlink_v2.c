@@ -32,6 +32,7 @@ static TaskHandle_t heartbeat_task;
 
 void mavlink_send_camera_info();
 void mavlink_send_camera_settings();
+void mavlink_send_camera_capture_status();
 
 typedef struct {
     mavlink_camera_callback_handler_t camera_callback;
@@ -45,6 +46,14 @@ mavlink_system_t mavlink_system = {
 };
 
 #include "mavlink_bridge.h"
+
+/* This will wrap at some point in the future
+ * Celebrate when that happens
+ */
+uint32_t get_time_since_boot_in_ms() {
+    int64_t current = esp_timer_get_time();
+    return current / 1000;  // ESP Timer is in microseconds
+}
 
 esp_err_t configure_uart() {
     const int uart_num = MAVLINK_UART;
@@ -73,7 +82,6 @@ _Noreturn static void uart_event_task(void *pvParameters)
 {
     mavlink_status_t status;
     mavlink_message_t msg;
-    int chan = 0;
 
     uart_event_t event;
     // size_t buffered_size;
@@ -91,7 +99,7 @@ _Noreturn static void uart_event_task(void *pvParameters)
                     uart_read_bytes(MAVLINK_UART, dtmp, event.size, portMAX_DELAY);
 
                     for (int i =0; i< event.size; i++) {
-                        if (mavlink_frame_char(chan, *(dtmp+i), &msg, &status) != MAVLINK_FRAMING_INCOMPLETE) {
+                        if (mavlink_frame_char(MAVLINK_COMM_0, *(dtmp+i), &msg, &status) != MAVLINK_FRAMING_INCOMPLETE) {
                             // Make a copy of the message and send it on the queue
                             if (xQueueSend(mavlink_incoming_queue, &msg, 0) != pdPASS) {
                                 ESP_LOGE(TAG, "Unable to send message to handler queue");
@@ -114,7 +122,15 @@ _Noreturn static void uart_event_task(void *pvParameters)
 
 _Noreturn static void mavlink_heartbeat_task(void * pvParameters) {
     for (;;) {
-        mavlink_msg_heartbeat_send(0, MAV_TYPE_CAMERA, MAV_AUTOPILOT_INVALID, MAV_MODE_PREFLIGHT, 0, MAV_STATE_ACTIVE);
+        mavlink_camera_callback_t callback = {
+                .type = CMD_GET_STATUS
+        };
+        cmd_get_status_t cmd_get_status;
+
+        mavlink_camera_err_t result = mavlink_callbacks.camera_callback(callback, &cmd_get_status);
+        uint8_t system_status = (result == CAMERA_OK && cmd_get_status.ready) ? MAV_STATE_ACTIVE : MAV_STATE_STANDBY;
+        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, MAV_TYPE_CAMERA, MAV_AUTOPILOT_INVALID, MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_MANUAL_INPUT_ENABLED, 0, system_status);
+
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
@@ -140,21 +156,22 @@ _Noreturn static void mavlink_message_handler(void *pvParameters) {
                     switch (cmd.command) {
                         case MAV_CMD_REQUEST_CAMERA_INFORMATION:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_INFORMATION");
-                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
+                            mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
                             mavlink_send_camera_info();
                             break;
                         case MAV_CMD_REQUEST_CAMERA_SETTINGS:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_SETTINGS");
-                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
+                            mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
                             mavlink_send_camera_settings();
                             break;
                         case MAV_CMD_REQUEST_STORAGE_INFORMATION:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_STORAGE_INFORMATION");
-                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
+                            mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_UNSUPPORTED, 255, 0, msg.sysid, msg.compid);
                             break;
                         case MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS");
-                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
+                            mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
+                            mavlink_send_camera_capture_status();
                             break;
                         case MAV_CMD_SET_CAMERA_MODE:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_SET_CAMERA_MODE");
@@ -166,17 +183,17 @@ _Noreturn static void mavlink_message_handler(void *pvParameters) {
                                     .cmd_set_mode = set_mode
                             };
                             if (mavlink_callbacks.camera_callback(callback, NULL) != CAMERA_OK) {
-                                mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_FAIL, 255, 0, msg.sysid, msg.compid);
+                                mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_FAILED, 255, 0, msg.sysid, msg.compid);
                             } else {
-                                mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_OK, 255, 0, msg.sysid, msg.compid);
+                                mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 0, 0, msg.sysid, msg.compid);
                             }
                             break;
                         case MAV_CMD_REQUEST_VIDEO_STREAM_INFORMATION:
                             ESP_LOGD(TAG, "Responding to MAV_CMD_REQUEST_VIDEO_STREAM_INFORMATION");
-                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
+                            mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_UNSUPPORTED, 255, 0, msg.sysid, msg.compid);
                             break;
                         default:
-                            mavlink_msg_command_ack_send(0, cmd.command, MAV_CMD_ACK_ERR_NOT_SUPPORTED, 255, 0, msg.sysid, msg.compid);
+                            mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_UNSUPPORTED, 255, 0, msg.sysid, msg.compid);
                             break;
                     }
                     break;
@@ -248,8 +265,8 @@ void mavlink_send_camera_info() {
                     CAMERA_CAP_FLAGS_HAS_BASIC_ZOOM;
 
     mavlink_msg_camera_information_send(
-            0,
-            0,
+            MAVLINK_COMM_0,
+            get_time_since_boot_in_ms(),
             vendor,
             model,
             1,
@@ -266,11 +283,54 @@ void mavlink_send_camera_info() {
 }
 
 void mavlink_send_camera_settings() {
+    mavlink_camera_callback_t callback = {
+            .type = CMD_GET_SETTINGS
+    };
+    cmd_get_settings_t cmd_get_settings;
+
+    if (mavlink_callbacks.camera_callback(callback, &cmd_get_settings) != CAMERA_OK) {
+        ESP_LOGI(TAG, "Failed to retrieve settings from the callback");
+        return;
+    }
+
+    uint8_t mode_id = CAMERA_MODE_IMAGE;
+    switch (cmd_get_settings.recording_mode) {
+        case RECORDING_MODE_STILL:
+            mode_id = CAMERA_MODE_IMAGE;
+            break;
+        case RECORDING_MODE_VIDEO:
+            mode_id = CAMERA_MODE_VIDEO;
+            break;
+    }
+
     mavlink_msg_camera_settings_send(
-            0,
-            0,
-            CAMERA_MODE_IMAGE,
+            MAVLINK_COMM_0,
+            get_time_since_boot_in_ms(),
+            mode_id,
             0,
             0
+            );
+}
+
+void mavlink_send_camera_capture_status() {
+    mavlink_camera_callback_t callback = {
+            .type = CMD_GET_SETTINGS
+    };
+    cmd_get_settings_t cmd_get_settings;
+
+    if (mavlink_callbacks.camera_callback(callback, &cmd_get_settings) != CAMERA_OK) {
+        ESP_LOGI(TAG, "Failed to retrieve settings from the callback");
+        return;
+    }
+
+    mavlink_msg_camera_capture_status_send(
+            MAVLINK_COMM_0,
+            get_time_since_boot_in_ms(),
+            cmd_get_settings.processing, // 0: idle, 1: capture in progress, 2: interval set but idle, 3: interval set and capture in progress
+            cmd_get_settings.processing, // 0: idle, 1: capture in progress
+            0,
+            cmd_get_settings.recording_time_ms,
+            cmd_get_settings.available_capacity,
+            cmd_get_settings.image_count
             );
 }

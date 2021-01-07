@@ -26,6 +26,8 @@ typedef struct {
 
 static callback_t callback;
 
+static esp_netif_t *esp_netif;
+
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_DISCONNECTED_BIT BIT1
 #define WIFI_STA_READY_BIT BIT2
@@ -61,7 +63,7 @@ esp_err_t gopro_wifi_init(gopro_callback_handler_t handler, void *user_data) {
     callback.user_data = user_data;
 
     ESP_ERROR_CHECK(esp_netif_init());
-    esp_netif_create_default_wifi_sta();
+    esp_netif = esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -105,7 +107,7 @@ esp_err_t gopro_wifi_init(gopro_callback_handler_t handler, void *user_data) {
     return result;
 }
 
-esp_err_t gopro_wifi_connect(void) {
+esp_err_t gopro_wifi_connect() {
     esp_wifi_connect();
 
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
@@ -117,4 +119,10 @@ esp_err_t gopro_wifi_connect(void) {
     esp_err_t result = bits & WIFI_CONNECTED_BIT ? ESP_OK : ESP_FAIL;
     xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_DISCONNECTED_BIT);
     return result;
+}
+
+esp_err_t gopro_wifi_disconnect() {
+    esp_wifi_disconnect();
+
+    return ESP_OK;
 }

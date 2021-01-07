@@ -8,6 +8,7 @@
 #include "gopro_internal.h"
 
 esp_err_t gopro_wifi_init(gopro_callback_handler_t handler, void *user_data);
-esp_err_t gopro_wifi_connect(void);
+esp_err_t gopro_wifi_connect();
+esp_err_t gopro_wifi_disconnect();
 
 #endif //GOPROCONTROL_GOPRO_WIFI_H

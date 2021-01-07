@@ -21,18 +21,78 @@
 static gopro_connection_t connection;
 
 mavlink_camera_err_t camera_callback(mavlink_camera_callback_t callback, void *pvParameters) {
+    mavlink_camera_err_t result = CAMERA_FAIL;
+    gopro_status_t status;
+
     switch (callback.type) {
         case CMD_SET_MODE:
-            if (gopro_setmode(&connection, callback.cmd_set_mode.mode) == ESP_OK) {
-                return CAMERA_OK;
-            } else {
-                return CAMERA_FAIL;
+            switch (callback.cmd_set_mode.mode) {
+                case RECORDING_MODE_STILL:
+                    if (gopro_setmode(&connection, GOPRO_STILL) == ESP_OK) {
+                        result = CAMERA_OK;
+                    }
+                    break;
+                case RECORDING_MODE_VIDEO:
+                    if (gopro_setmode(&connection, GOPRO_VIDEO) == ESP_OK) {
+                        result = CAMERA_OK;
+                    }
+                    break;
+                default:
+                    ESP_LOGW(TAG, "No gopro mode for mode type %d", callback.cmd_set_mode.mode);
+                    result = CAMERA_INVALID_ARG;
+                    break;
             }
+            break;
+        case CMD_GET_STATUS:
+            if (pvParameters == NULL) {
+                result = CAMERA_INVALID_ARG;
+                break;
+            }
+
+            if (gopro_get_status(&connection, &status) != ESP_OK) {
+                result = CAMERA_FAIL;
+                break;
+            }
+
+            cmd_get_status_t *cmd_get_status = pvParameters;
+            cmd_get_status->ready = status.ready;
+            result = CAMERA_OK;
+            break;
+        case CMD_GET_SETTINGS:
+            if (pvParameters == NULL) {
+                result = CAMERA_INVALID_ARG;
+                break;
+            }
+
+            gopro_settings_t gopro_settings;
+            if (gopro_get_settings(&connection, &gopro_settings) != ESP_OK) {
+                result = CAMERA_FAIL;
+                break;
+            }
+
+            cmd_get_settings_t *cmd_get_settings = pvParameters;
+            if (gopro_settings.mode == GOPRO_STILL) {
+                cmd_get_settings->recording_mode = RECORDING_MODE_STILL;
+            } else if (gopro_settings.mode == GOPRO_VIDEO) {
+                cmd_get_settings->recording_mode = RECORDING_MODE_VIDEO;
+            } else {
+                ESP_LOGW(TAG, "GoPro is in a mode that has no equivalent in MavLink");
+                cmd_get_settings->recording_mode = RECORDING_MODE_STILL; //FIXME
+            }
+
+            cmd_get_settings->image_count = gopro_settings.num_photos_taken;
+            cmd_get_settings->available_capacity = gopro_settings.remaining_capacity_bytes;
+            cmd_get_settings->recording_time_ms = gopro_settings.recording_duration;
+            cmd_get_settings->processing = gopro_settings.processing;
+
+            result = CAMERA_OK;
             break;
         default:
             ESP_LOGW(TAG, "No defined action for callback %d", callback.type);
-            return CAMERA_FAIL;
     }
+
+    ESP_LOGD(TAG, "Camera callback handler complete for cmd %d (result: %d)", callback.type, result);
+    return result;
 }
 
 _Noreturn void app_main(void) {
@@ -48,7 +108,8 @@ _Noreturn void app_main(void) {
 
     esp_log_level_set("blink_task", ESP_LOG_WARN);
     esp_log_level_set("mavlink_uart", ESP_LOG_DEBUG);
-    esp_log_level_set("HTTP_CLIENT", ESP_LOG_DEBUG);
+    //esp_log_level_set("HTTP_CLIENT", ESP_LOG_DEBUG);
+    esp_log_level_set("gopro_http", ESP_LOG_DEBUG);
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
