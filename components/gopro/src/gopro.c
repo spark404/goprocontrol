@@ -152,5 +152,20 @@ esp_err_t gopro_get_settings(gopro_connection_t *gopro_connection, gopro_setting
     return ESP_OK;
 }
 
+esp_err_t gopro_start_recording(gopro_connection_t *gopro_connection) {
+    if (gopro_connection == NULL) {
+        return ESP_FAIL;
+    }
+
+    return gopro_http_shutter(1);
+}
+
+esp_err_t gopro_stop_recording(gopro_connection_t *gopro_connection) {
+    if (gopro_connection == NULL) {
+        return ESP_FAIL;
+    }
+
+    return gopro_http_shutter(0);
+}
 
 

@@ -82,10 +82,19 @@ mavlink_camera_err_t camera_callback(mavlink_camera_callback_t callback, void *p
 
             cmd_get_settings->image_count = gopro_settings.num_photos_taken;
             cmd_get_settings->available_capacity = gopro_settings.remaining_capacity_bytes;
-            cmd_get_settings->recording_time_ms = gopro_settings.recording_duration;
+            cmd_get_settings->recording_time_ms = gopro_settings.recording_duration * 1000;
             cmd_get_settings->processing = gopro_settings.processing;
 
             result = CAMERA_OK;
+            break;
+        case CMD_START_VIDEO_RECORDING:
+            result = gopro_start_recording(&connection) == ESP_OK ? CAMERA_OK : CAMERA_FAIL;
+            break;
+        case CMD_STOP_VIDEO_RECORDING:
+            result = gopro_stop_recording(&connection) == ESP_OK ? CAMERA_OK : CAMERA_FAIL;
+            break;
+        case CMD_START_STILL_RECORDING:
+            result = gopro_start_recording(&connection) == ESP_OK ? CAMERA_OK : CAMERA_FAIL;
             break;
         default:
             ESP_LOGW(TAG, "No defined action for callback %d", callback.type);
@@ -108,7 +117,7 @@ _Noreturn void app_main(void) {
 
     esp_log_level_set("blink_task", ESP_LOG_WARN);
     esp_log_level_set("mavlink_uart", ESP_LOG_DEBUG);
-    //esp_log_level_set("HTTP_CLIENT", ESP_LOG_DEBUG);
+    esp_log_level_set("HTTP_CLIENT", ESP_LOG_INFO);
     esp_log_level_set("gopro_http", ESP_LOG_DEBUG);
 
     // Initialize NVS

@@ -32,17 +32,17 @@ esp_err_t http_event_handle(esp_http_client_event_t *evt)
             ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
             break;
         case HTTP_EVENT_ON_CONNECTED:
-            ESP_LOGD(TAG, "HTTP_EVENT_ON_CONNECTED");
+            // ESP_LOGD(TAG, "HTTP_EVENT_ON_CONNECTED");
             break;
         case HTTP_EVENT_HEADER_SENT:
-            ESP_LOGD(TAG, "HTTP_EVENT_HEADER_SENT");
+            // ESP_LOGD(TAG, "HTTP_EVENT_HEADER_SENT");
             break;
         case HTTP_EVENT_ON_HEADER:
-            ESP_LOGD(TAG, "HTTP_EVENT_ON_HEADER");
-            printf("%.*s", evt->data_len, (char*)evt->data);
+            // ESP_LOGD(TAG, "HTTP_EVENT_ON_HEADER");
+            // ESP_LOGD(TAG, "%.*s", evt->data_len, (char*)evt->data);
             break;
         case HTTP_EVENT_ON_DATA:
-            ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+            // ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
             if (evt->user_data == NULL) {
                 // No need to capture data
                 return ESP_OK;
@@ -75,7 +75,7 @@ esp_err_t http_event_handle(esp_http_client_event_t *evt)
             output_len += evt->data_len;
             break;
         case HTTP_EVENT_ON_FINISH:
-            ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
+            // ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
             if (evt->user_data == NULL || output_buffer == NULL) {
                 // No need to capture data
                 return ESP_OK;
@@ -93,7 +93,7 @@ esp_err_t http_event_handle(esp_http_client_event_t *evt)
             output_len = 0;
             break;
         case HTTP_EVENT_DISCONNECTED:
-            ESP_LOGD(TAG, "HTTP_EVENT_DISCONNECTED");
+            // ESP_LOGD(TAG, "HTTP_EVENT_DISCONNECTED");
             break;
     }
     return ESP_OK;
@@ -307,6 +307,15 @@ esp_err_t gopro_http_set_mode(int mode) {
     char url[strlen(modebase) + 2];
     strcpy(url, modebase);
     itoa(mode, url+strlen(url), 10);
+
+    return gopro_http_request(url);
+}
+
+esp_err_t gopro_http_shutter(int enable) {
+    char *shutterbase = "/gp/gpControl/command/shutter?p=";
+    char url[strlen(shutterbase) + 2];
+    strcpy(url, shutterbase);
+    itoa(enable ? 1 : 0, url+strlen(url), 10);
 
     return gopro_http_request(url);
 }

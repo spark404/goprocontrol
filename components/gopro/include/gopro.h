@@ -50,4 +50,7 @@ esp_err_t gopro_setmode(gopro_connection_t *gopro_connection, gopro_mode_t mode)
 esp_err_t gopro_get_status(gopro_connection_t *gopro_connection, gopro_status_t *status);
 esp_err_t gopro_get_settings(gopro_connection_t *gopro_connection, gopro_settings_t *settings);
 
+esp_err_t gopro_start_recording(gopro_connection_t *gopro_connection);
+esp_err_t gopro_stop_recording(gopro_connection_t *gopro_connection);
+
 #endif //GOPROCONTROL_GOPRO_H

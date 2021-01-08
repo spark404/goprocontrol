@@ -8,7 +8,11 @@
 typedef enum {
     CMD_SET_MODE,
     CMD_GET_STATUS,
-    CMD_GET_SETTINGS
+    CMD_GET_SETTINGS,
+    CMD_START_VIDEO_RECORDING,
+    CMD_STOP_VIDEO_RECORDING,
+    CMD_START_STILL_RECORDING,
+    CMD_STOP_STILL_RECORDING
 } mavlink_camera_callback_type_t;
 
 typedef enum {
@@ -31,6 +35,10 @@ typedef struct {
     float available_capacity;
     int image_count;
 } cmd_get_settings_t;
+
+typedef struct {
+    int image_index;
+} image_captured_t;
 
 typedef struct {
     mavlink_camera_callback_type_t type;
