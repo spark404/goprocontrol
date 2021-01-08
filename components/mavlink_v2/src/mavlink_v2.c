@@ -172,6 +172,31 @@ _Noreturn static void mavlink_message_handler(void *pvParameters) {
                     ESP_LOGD(TAG, "Command received: (sysid: %d compid: %d msgid: %d) from compid %d, sysid %d",
                              cmd.target_system, cmd.target_component, cmd.command, msg.compid, msg.sysid);
                     switch (cmd.command) {
+                        case MAV_CMD_REQUEST_MESSAGE:
+                            MAV_LOG_CMDD(TAG, "MAV_CMD_REQUEST_MESSAGE", cmd);
+                            uint32_t requested_message_id = cmd.param1;
+                            switch (requested_message_id) {
+                                case MAVLINK_MSG_ID_CAMERA_INFORMATION:
+                                    mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
+                                    mavlink_send_camera_info();
+                                    break;
+                                case MAVLINK_MSG_ID_CAMERA_SETTINGS:
+                                    mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
+                                    mavlink_send_camera_settings();
+                                    break;
+                                case MAVLINK_MSG_ID_STORAGE_INFORMATION:
+                                    mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
+                                    mavlink_camera_send_storage_information(cmd.param2);
+                                    break;
+                                case MAVLINK_MSG_ID_CAMERA_CAPTURE_STATUS:
+                                    mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
+                                    mavlink_send_camera_capture_status();
+                                    break;
+                                default:
+                                    mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_UNSUPPORTED, 255, 0, msg.sysid, msg.compid);
+                                    break;
+                            }
+                            break;
                         case MAV_CMD_REQUEST_CAMERA_INFORMATION:
                             MAV_LOG_CMDD(TAG, "MAV_CMD_REQUEST_CAMERA_INFORMATION", cmd);
                             mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
@@ -245,8 +270,7 @@ _Noreturn static void mavlink_message_handler(void *pvParameters) {
                     }
                     break;
                 default:
-                    ESP_LOGD(TAG, "Received message with ID %d, sequence: %d from component %d of system %d", msg.msgid,
-                             msg.seq, msg.compid, msg.sysid);
+                    //ESP_LOGD(TAG, "Received message with ID %d, sequence: %d from component %d of system %d", msg.msgid, msg.seq, msg.compid, msg.sysid);
                     break;
             }
         }

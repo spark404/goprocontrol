@@ -260,37 +260,31 @@ esp_err_t gopro_http_get_status(gopro_internal_status_t *gopro_internal_status) 
 
     field = cJSON_GetObjectItem(status_object, STATUS_CURRENT_MODE);
     if (field != NULL && cJSON_IsNumber(field)) {
-        ESP_LOGD(TAG, "Status %s is %d", STATUS_CURRENT_MODE, field->valueint);
         gopro_internal_status->current_mode = field->valueint;
     }
 
     field = cJSON_GetObjectItem(status_object, STATUS_CURRENT_RECORDING_VIDEO_DURATION);
     if (field != NULL && cJSON_IsNumber(field)) {
-        ESP_LOGD(TAG, "Status %s is %d", STATUS_CURRENT_RECORDING_VIDEO_DURATION, field->valueint);
         gopro_internal_status->recording_time_ms = field->valueint;
     }
 
     field = cJSON_GetObjectItem(status_object, STATUS_NUM_ALL_PHOTOS_TAKEN);
     if (field != NULL && cJSON_IsNumber(field)) {
-        ESP_LOGD(TAG, "Status %s is %d", STATUS_NUM_ALL_PHOTOS_TAKEN, field->valueint);
         gopro_internal_status->num_photos_taken = field->valueint;
     }
 
     field = cJSON_GetObjectItem(status_object, STATUS_NUM_ALL_VIDEOS_TAKEN);
     if (field != NULL && cJSON_IsNumber(field)) {
-        ESP_LOGD(TAG, "Status %s is %d", STATUS_NUM_ALL_VIDEOS_TAKEN, field->valueint);
         gopro_internal_status->num_videos_taken = field->valueint;
     }
 
     field = cJSON_GetObjectItem(status_object, STATUS_REMAINING_FREE_BYTES);
     if (field != NULL && cJSON_IsNumber(field)) {
-        ESP_LOGD(TAG, "Status %s is %d", STATUS_REMAINING_FREE_BYTES, field->valueint);
         gopro_internal_status->remaining_free_bytes = field->valueint;
     }
 
     field = cJSON_GetObjectItem(status_object, STATUS_PROCESSING_STATUS);
     if (field != NULL && cJSON_IsNumber(field)) {
-        ESP_LOGD(TAG, "Status %s is %d", STATUS_PROCESSING_STATUS, field->valueint);
         gopro_internal_status->processing_flag = field->valueint;
     }
 

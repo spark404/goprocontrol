@@ -23,8 +23,14 @@ _Noreturn void connection_manager_task(void *pvParameters) {
     ESP_LOGI(TAG, "Starting connection manager task for GoPro");
     gopro_connection_t *connection = pvParameters;
     int wol_retries = 0;
+    gopro_connection_state_t previous_state = -1;
 
     for(;;) {
+        if (connection->connection_state != previous_state) {
+            ESP_LOGI(TAG, "GoPro connection state changed from %d to %d", previous_state, connection->connection_state);
+            previous_state = connection->connection_state;
+        }
+
         switch (connection->connection_state) {
             case GOPRO_WIFI_DISCONNECTED:
                 if (gopro_wifi_connect() != ESP_OK) {
@@ -34,6 +40,7 @@ _Noreturn void connection_manager_task(void *pvParameters) {
                 connection->connection_state = GOPRO_WIFI_CONNECTED;
                 // Fallthrough to the next step
             case GOPRO_WIFI_CONNECTED:
+                // Fallthrough to the next step
             case GOPRO_HTTP_DISCONNECTED:
                 if (gopro_http_get_info() == ESP_OK) {
                     ESP_LOGD(TAG, "HTTP info retrieved, state set to GOPRO_WIFI_CONNECTED");

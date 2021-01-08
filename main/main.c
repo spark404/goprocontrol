@@ -100,7 +100,6 @@ mavlink_camera_err_t camera_callback(mavlink_camera_callback_t callback, void *p
             ESP_LOGW(TAG, "No defined action for callback %d", callback.type);
     }
 
-    ESP_LOGD(TAG, "Camera callback handler complete for cmd %d (result: %d)", callback.type, result);
     return result;
 }
 
@@ -117,8 +116,11 @@ _Noreturn void app_main(void) {
 
     esp_log_level_set("blink_task", ESP_LOG_WARN);
     esp_log_level_set("mavlink_uart", ESP_LOG_DEBUG);
-    esp_log_level_set("HTTP_CLIENT", ESP_LOG_INFO);
     esp_log_level_set("gopro_http", ESP_LOG_DEBUG);
+
+    esp_log_level_set("HTTP_CLIENT", ESP_LOG_INFO);
+    esp_log_level_set("TRANS_TCP", ESP_LOG_INFO);
+
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
