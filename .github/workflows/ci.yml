@@ -16,5 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Setup ESP_IDF
+        run: . ${IDF_PATH}/export.sh
+        
       - name: IDF Build
-        run: ${IDF_PATH}/tools/idf.py build
+        run: idf.py build
