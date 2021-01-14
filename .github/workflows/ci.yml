@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  buildv41:
     runs-on: ubuntu-latest
     
     steps:
@@ -19,5 +19,18 @@ jobs:
 
       - name: IDF Build
         uses: docker://espressif/idf:v4.1
+        with:
+          args: idf.py build
+
+  buildv42:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: IDF Build
+        uses: docker://espressif/idf:v4.2
         with:
           args: idf.py build
