@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v4.1
+    
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: IDF Build
+        run: idf.py build
