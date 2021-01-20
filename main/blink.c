@@ -1,3 +1,4 @@
+#include <alloca.h>
 /* Blink Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
@@ -13,6 +14,8 @@
 #include "sdkconfig.h"
 #include "esp_log.h"
 
+#include "blink.h"
+
 /* Can use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
    or you can edit the following line and set a number here.
 */
@@ -20,27 +23,51 @@
 
 #define TAG "blink_task"
 
-void blink_task(void *pvParameters) {
-    /* Configure the IOMUX register for pad BLINK_GPIO (some pads are
-       muxed to GPIO on reset already, but some default to other
-       functions and need to be switched to GPIO. Consult the
-       Technical Reference for a list of pads and their default
-       functions.)
-    */
-    gpio_pad_select_gpio(BLINK_GPIO);
+_Noreturn void blink_task(void *pvParameters)
+{
+    assert(pvParameters != NULL);
 
-    /* Set the GPIO as a push/pull output */
+    blink_config_t *config = (blink_config_t *)pvParameters;
+
+    gpio_pad_select_gpio(BLINK_GPIO);
     gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
 
-    while (1) {
-        /* Blink off (output low) */
-        ESP_LOGI(TAG, "Turning off the LED");
-        gpio_set_level(BLINK_GPIO, 0);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    int delay_in_ms = config->default_delay_in_ms;
+    int total_delay = 0;
 
-        /* Blink on (output high) */
-        ESP_LOGI(TAG, "Turning on the LED");
-        gpio_set_level(BLINK_GPIO, 1);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    while (1) {
+        if (total_delay >= 1000) {
+            switch (config->status_cb()) {
+                case BLINK_STATUS_INITIALIZING:
+                    delay_in_ms = 500;
+                    break;
+                case BLINK_STATUS_READY:
+                    delay_in_ms = 0;
+                    break;
+                case BLINK_STATUS_ERROR:
+                    delay_in_ms = 250;
+                    break;
+                default:
+                    delay_in_ms = config->default_delay_in_ms;
+            }
+            total_delay = 0;
+        }
+
+        if (delay_in_ms == 0) {
+            // always on
+            gpio_set_level(BLINK_GPIO, 1);
+            total_delay += 1000;
+        } else {
+
+            /* Blink off (output low) */
+            gpio_set_level(BLINK_GPIO, 0);
+            vTaskDelay(delay_in_ms / portTICK_PERIOD_MS);
+
+            /* Blink on (output high) */
+            gpio_set_level(BLINK_GPIO, 1);
+            vTaskDelay(delay_in_ms / portTICK_PERIOD_MS);
+
+            total_delay += 2 * delay_in_ms;
+        }
     }
 }

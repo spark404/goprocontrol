@@ -1,0 +1,21 @@
+//
+// Created by Hugo Trippaers on 19/01/2021.
+//
+
+#ifndef GOPROCONTROL_MAVLINK_CAMERA_H
+#define GOPROCONTROL_MAVLINK_CAMERA_H
+
+#include "mavlink_bridge.h"
+
+esp_err_t mavlink_camera_send_camera_information(mavlink_camera_callbacks_t mavlink_camera_callbacks);
+esp_err_t mavlink_camera_send_camera_settings(mavlink_camera_callbacks_t mavlink_camera_callbacks);
+esp_err_t mavlink_camera_send_camera_capture_status(mavlink_camera_callbacks_t mavlink_camera_callbacks);
+esp_err_t mavlink_camera_send_storage_information(mavlink_camera_callbacks_t mavlink_camera_callbacks, uint8_t storage_id);
+
+esp_err_t mavlink_camera_handle_set_mode(mavlink_camera_callbacks_t mavlink_camera_callbacks, uint8_t mode);
+esp_err_t mavlink_camera_handle_start_video_recording(mavlink_camera_callbacks_t mavlink_camera_callbacks);
+esp_err_t mavlink_camera_handle_stop_video_recording(mavlink_camera_callbacks_t mavlink_camera_callbacks);
+esp_err_t mavlink_camera_handle_start_capture(mavlink_camera_callbacks_t mavlink_camera_callbacks);
+esp_err_t mavlink_camera_handle_stop_capture(mavlink_camera_callbacks_t mavlink_camera_callbacks);
+
+#endif //GOPROCONTROL_MAVLINK_CAMERA_H

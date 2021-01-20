@@ -5,6 +5,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/semphr.h>
 
 #include <esp_err.h>
 #include <esp_log.h>
@@ -94,7 +95,14 @@ esp_err_t gopro_init(gopro_connection_t *gopro_connection) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGI(TAG, "Initializing WiFi");
+    gopro_connection->http_lock = xSemaphoreCreateBinary();
+    if (gopro_connection->http_lock == NULL) {
+        ESP_LOGE(TAG, "xSemaphoreCreateBinary failed");
+        return ESP_FAIL;
+    }
+    xSemaphoreGive(gopro_connection->http_lock);
+
+    ESP_LOGI(TAG, "Initializing WiFi/HTTP connection to GoPro");
     gopro_wifi_init(gopro_callback, gopro_connection);
     gopro_http_init(gopro_callback, gopro_connection);
 
@@ -107,7 +115,7 @@ esp_err_t gopro_init(gopro_connection_t *gopro_connection) {
         gopro_connection->camera_mac = GOPRO_RDP_MAC_ADDRESS;
     }
 
-    ESP_LOGI(TAG, "Initializing GoPro Connection");
+    ESP_LOGI(TAG, "Starting connection manager task");
     xTaskCreate(&connection_manager_task, "connection_manager_task", 10240, gopro_connection, 20, NULL);
 
     return ESP_OK;
@@ -118,7 +126,14 @@ esp_err_t gopro_setmode(gopro_connection_t *gopro_connection, gopro_mode_t mode)
         return ESP_FAIL;
     }
 
-    return gopro_http_set_mode(mode);
+    if (xSemaphoreTake(gopro_connection->http_lock, 500 / portTICK_PERIOD_MS) != pdTRUE) {
+        ESP_LOGE(TAG, "Failed to obtain semaphore for GoPro set mode");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    esp_err_t result = gopro_http_set_mode(mode);
+    xSemaphoreGive( gopro_connection->http_lock);
+    return result;
 }
 
 esp_err_t gopro_get_status(gopro_connection_t *gopro_connection, gopro_status_t *status) {
@@ -145,8 +160,14 @@ esp_err_t gopro_get_settings(gopro_connection_t *gopro_connection, gopro_setting
         return ESP_ERR_INVALID_ARG;
     }
 
+    if (xSemaphoreTake(gopro_connection->http_lock, 500 / portTICK_PERIOD_MS) != pdTRUE) {
+        ESP_LOGE(TAG, "Failed to obtain semaphore for GoPro get settings");
+        return ESP_ERR_TIMEOUT;
+    };
+
     gopro_internal_status_t internal_status;
     if (gopro_http_get_status(&internal_status) != ESP_OK) {
+        xSemaphoreGive(gopro_connection->http_lock);
         return ESP_FAIL;
     }
 
@@ -156,6 +177,7 @@ esp_err_t gopro_get_settings(gopro_connection_t *gopro_connection, gopro_setting
     settings->num_photos_taken = internal_status.num_photos_taken;
     settings->remaining_capacity_bytes = internal_status.remaining_free_bytes;
 
+    xSemaphoreGive(gopro_connection->http_lock);
     return ESP_OK;
 }
 
