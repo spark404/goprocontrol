@@ -1,6 +1,6 @@
-menu "Generic Configuration"
-    config BLINK_GPIO
-        int "Blink GPIO number"
+menu "GoPro Control Configuration"
+    config STATUS_LED_GPIO
+        int "GPIO number for the status LED"
         range 0 34
         default 2
         help

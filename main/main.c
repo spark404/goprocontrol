@@ -94,10 +94,7 @@ _Noreturn void app_main(void)
     ESP_ERROR_CHECK(gopro_init(&connection));
 
     ESP_LOGI(TAG, "[APP] Starting MAVLINK on UART");
-    mavlink_uart_config_t mavlink_uart_config = {
-            .uart_num = 2
-    };
-    mavlink_uart_handle_t mavlink_uart_handle = mavlink_uart_configure(&mavlink_uart_config);
+    mavlink_uart_handle_t mavlink_uart_handle = mavlink_uart_configure();
     assert(mavlink_uart_handle != NULL);
     ESP_ERROR_CHECK(mavlink_uart_connect(mavlink_uart_handle));
 

@@ -19,7 +19,7 @@
 /* Can use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
    or you can edit the following line and set a number here.
 */
-#define BLINK_GPIO CONFIG_BLINK_GPIO
+#define BLINK_GPIO CONFIG_STATUS_LED_GPIO
 
 #define TAG "blink_task"
 
@@ -56,9 +56,9 @@ _Noreturn void blink_task(void *pvParameters)
         if (delay_in_ms == 0) {
             // always on
             gpio_set_level(BLINK_GPIO, 1);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
             total_delay += 1000;
         } else {
-
             /* Blink off (output low) */
             gpio_set_level(BLINK_GPIO, 0);
             vTaskDelay(delay_in_ms / portTICK_PERIOD_MS);

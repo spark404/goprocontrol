@@ -2,7 +2,7 @@ menu "MAVLinkV2 Configuration"
     config MAVLINK_SYSTEM_ID
         int "System ID"
         range 1 255
-        default 2
+        default 1
         help
             Unique system id for this device
 
@@ -12,5 +12,46 @@ menu "MAVLinkV2 Configuration"
         default 100
         help
             Default 100 (Camera #1)
+
+    choice MAVLINK_UART
+        prompt "Which UART to use to mavlink communication"
+
+    config MAVLINK_UART_0
+        bool "UART0"
+
+    config MAVLINK_UART_1
+        bool "UART1"
+
+    config MAVLINK_UART_2
+        bool "UART2"
+
+    endchoice
+
+    config MAVLINK_UART_CUSTOM_PINS
+        bool "Use custom uart pins"
+
+    config MAVLINK_UART_TX_PIN
+        depends on MAVLINK_UART_CUSTOM_PINS
+        int "TX Pin"
+        range 0 34
+        default 4
+        help
+            GPIO number (IOxx) to use for transmit
+
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used.
+
+            GPIOs 35-39 are input-only so cannot be used as outputs.
+
+    config MAVLINK_UART_RX_PIN
+        depends on MAVLINK_UART_CUSTOM_PINS
+        int "RX Pin"
+        range 0 34
+        default 5
+        help
+            GPIO number (IOxx) to use for receive
+
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used.
+
+            GPIOs 35-39 are input-only so cannot be used as outputs.
 
 endmenu

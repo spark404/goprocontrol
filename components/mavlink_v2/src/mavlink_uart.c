@@ -13,8 +13,21 @@
 #define BUF_SIZE (1024)
 #define RD_BUF_SIZE (BUF_SIZE)
 
-#define MAVLINK_UART_TXD  (GPIO_NUM_4)
-#define MAVLINK_UART_RXD  (GPIO_NUM_5)
+#if defined CONFIG_MAVLINK_UART_0
+    #define MAVLINK_UART 0
+#elif defined CONFIG_MAVLINK_UART_1
+    #define MAVLINK_UART 1
+#elif defined CONFIG_MAVLINK_UART_2
+    #define MAVLINK_UART 2
+#endif
+
+#ifdef CONFIG_MAVLINK_UART_CUSTOM_PINS
+    #define MAVLINK_UART_TXD  (CONFIG_MAVLINK_UART_TX_PIN)
+    #define MAVLINK_UART_RXD  (CONFIG_MAVLINK_UART_RX_PIN)
+#else
+    #define MAVLINK_UART_TXD  (UART_PIN_NO_CHANGE)
+    #define MAVLINK_UART_RXD  (UART_PIN_NO_CHANGE)
+#endif
 #define MAVLINK_UART_RTS  (UART_PIN_NO_CHANGE)
 #define MAVLINK_UART_CTS  (UART_PIN_NO_CHANGE)
 
@@ -25,17 +38,13 @@
 
 static const char *TAG = "mavlink_uart";
 static QueueHandle_t uart_queue;
+static SemaphoreHandle_t uart_write;
 static int mavlink_uart_num = -1;
 
 static void mavlink_uart_handler_task(void *pvParameters);
 
-mavlink_uart_handle_t mavlink_uart_configure(const mavlink_uart_config_t *mavlink_uart_config)
+mavlink_uart_handle_t mavlink_uart_configure()
 {
-    if (mavlink_uart_config->uart_num > UART_NUM_MAX) {
-        ESP_LOGE(TAG, "UART %d not present", mavlink_uart_config->uart_num);
-        return NULL;
-    }
-
     uart_config_t uart_config = {
             .baud_rate = 115200,
             .data_bits = UART_DATA_8_BITS,
@@ -50,23 +59,31 @@ mavlink_uart_handle_t mavlink_uart_configure(const mavlink_uart_config_t *mavlin
     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
 #endif
 
-    ESP_ERROR_CHECK(uart_driver_install(mavlink_uart_config->uart_num, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart_queue, intr_alloc_flags));
-    ESP_ERROR_CHECK(uart_param_config(mavlink_uart_config->uart_num, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(mavlink_uart_config->uart_num, MAVLINK_UART_TXD, MAVLINK_UART_RXD, MAVLINK_UART_RTS, MAVLINK_UART_CTS));
+    ESP_ERROR_CHECK(uart_driver_install(MAVLINK_UART, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart_queue, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_param_config(MAVLINK_UART, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(MAVLINK_UART, MAVLINK_UART_TXD, MAVLINK_UART_RXD, MAVLINK_UART_RTS, MAVLINK_UART_CTS));
 
     mavlink_uart_handle_t handle = calloc(1, sizeof(mavlink_uart_handle_t));
     ESP_MEM_CHECK(TAG, handle, return NULL);
-    handle->uart_num = mavlink_uart_config->uart_num;
+    handle->uart_num = MAVLINK_UART;
     handle->incoming_message_queue = xQueueCreate(20, sizeof(mavlink_message_t));
 
     // Workaround for the mavlink_uart_send_bytes function
-    mavlink_uart_num = mavlink_uart_config->uart_num;
+    mavlink_uart_num = MAVLINK_UART;
 
     if (handle->incoming_message_queue == NULL) {
         ESP_LOGE(TAG, "Failed to initialize the incoming message queue");
         mavlink_uart_destroy(handle);
         return NULL;
     }
+
+    uart_write = xSemaphoreCreateBinary();
+    if (uart_write == NULL) {
+        ESP_LOGE(TAG, "Failed to initialize the write semaphore");
+        mavlink_uart_destroy(handle);
+        return NULL;
+    }
+    xSemaphoreGive(uart_write);
 
     return handle;
 }
@@ -150,10 +167,16 @@ void mavlink_uart_send_bytes(mavlink_channel_t chan, const uint8_t *ch, int leng
         return;
     }
 
+    if (xSemaphoreTake(uart_write, 500 / portTICK_PERIOD_MS) != pdPASS) {
+        ESP_LOGE(TAG, "[UART ERROR] Timeout on uart_write semaphore");
+    }
+
     int bytes_written = uart_write_bytes(mavlink_uart_num, (const char *)ch, length);
     if (bytes_written != length) {
         ESP_LOGE(TAG, "[UART ERROR]: expected to write %d, but wrote %d", length, bytes_written);
     }
+
+    xSemaphoreGive(uart_write);
 }
 
 void mavlink_uart_start_send(mavlink_channel_t chan, int length)
