@@ -86,11 +86,6 @@ _Noreturn static void mavlink_message_handler_task(void *pvParameters)
 
     for (;;) {
         if (xQueueReceive(mavlink_config->incoming_queue, (void *) &msg, (portTickType) portMAX_DELAY)) {
-//            if (!(msg.msgid == MAVLINK_MSG_ID_HEARTBEAT || msg.compid == mavlink_system.compid)) {
-//                // Ignore anything that isn't heartbeat or targeted at our component.
-//                continue;
-//            }
-
             switch (msg.msgid) {
             case MAVLINK_MSG_ID_HEARTBEAT:
                 if (msg.compid == 1 && heartbeat_task == NULL) {
@@ -107,6 +102,12 @@ _Noreturn static void mavlink_message_handler_task(void *pvParameters)
                 mavlink_msg_command_long_decode(&msg, &cmd);
                 ESP_LOGD(TAG, "Command received: (sysid: %d compid: %d msgid: %d) from compid %d, sysid %d",
                          cmd.target_system, cmd.target_component, cmd.command, msg.compid, msg.sysid);
+
+                if (cmd.target_system != mavlink_system.sysid || cmd.target_component != mavlink_system.compid) {
+                    // Not for us
+                    break;
+                }
+
                 switch (cmd.command) {
                 case MAV_CMD_REQUEST_MESSAGE:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_REQUEST_MESSAGE", cmd);

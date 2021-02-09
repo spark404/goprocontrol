@@ -40,6 +40,9 @@ def wait_conn(m):
 class CameraTests(unittest.TestCase):
     def setUp(self):
         self.camera = mavutil.mavlink_connection("/dev/tty.usbserial-00000000", baud=115200, source_system=1, source_component=1)
+        self.camera.target_component = 100
+        self.camera.target_system = 1
+
         if not wait_conn(self.camera): # Wait until we have a heartbeat
             print("Failed to connect to device")
             sys.exit(1)
@@ -73,6 +76,7 @@ class CameraTests(unittest.TestCase):
             2, 0, 0, 0, 0, 0, 0)
 
         ack_msg = self.camera.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
+        self.assertIsNotNone(ack_msg, "No message received before timeout")
         ack_msg = ack_msg.to_dict()
         self.assertEqual(ack_msg['command'], mavutil.mavlink.MAV_CMD_SET_CAMERA_MODE)
         self.assertEqual(ack_msg['result'], 0)

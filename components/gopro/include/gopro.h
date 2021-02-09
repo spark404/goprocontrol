@@ -29,7 +29,6 @@ typedef struct {
 
     // Internal stuff
     TaskHandle_t manager_task;
-    SemaphoreHandle_t http_lock;
 } gopro_connection_t;
 
 typedef struct {
