@@ -9,24 +9,30 @@
 
 #include "gopro_internal.h"
 
+#define GOPRO_BASEURL "http://10.5.5.9"
+
 static const char *TAG = "gopro_http";
 
 typedef struct {
     gopro_callback_handler_t handler;
     void *user_data;
 } callback_t;
-static callback_t callback;
 
 typedef struct {
     char *buffer;
     size_t buffer_size;
-} response_data_t;
+} response_buffer_t;
 
-esp_err_t http_event_handle(esp_http_client_event_t *evt)
+static callback_t callback;
+static response_buffer_t response_buffer;
+static esp_http_client_handle_t client;
+
+static esp_err_t http_event_handle(esp_http_client_event_t *evt)
 {
-    static char *output_buffer;  // Buffer to store response of http request from event handler
-    static int output_len;       // Stores number of bytes read
-    static size_t output_buffer_size;      // Stores the size of the malloc-ed output_buffer
+    static char *output_buffer;         // Buffer to store response of http request from event handler
+    static int output_len;              // Stores number of bytes read
+    static size_t output_buffer_size;   // Stores the size of the malloc-ed output_buffer
+
     switch(evt->event_id) {
         case HTTP_EVENT_ERROR:
             ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
@@ -55,8 +61,8 @@ esp_err_t http_event_handle(esp_http_client_event_t *evt)
                 } else {
                     output_buffer_size = esp_http_client_get_content_length(evt->client) + 1;
                 }
-                output_buffer = (char *) malloc(output_buffer_size);
 
+                output_buffer = (char *) malloc(output_buffer_size);
                 if (output_buffer == NULL) {
                     ESP_LOGE(TAG, "Failed to allocate %d bytes memory for output buffer", output_buffer_size);
                     return ESP_FAIL;
@@ -81,7 +87,7 @@ esp_err_t http_event_handle(esp_http_client_event_t *evt)
                 return ESP_OK;
             }
 
-            response_data_t *data = evt->user_data;
+            response_buffer_t *data = evt->user_data;
             if (output_len > data->buffer_size) {
                 ESP_LOGW(TAG, "Not enough space in result buffer");
             }
@@ -99,15 +105,40 @@ esp_err_t http_event_handle(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-esp_err_t gopro_http_init(gopro_callback_handler_t handler, void *user_data) {
+esp_err_t  gopro_http_init(gopro_callback_handler_t handler, void *user_data) {
     callback.handler = handler;
     callback.user_data = user_data;
+
+    response_buffer.buffer = malloc(2048);
+    response_buffer.buffer_size = 2048;
+
+    if (response_buffer.buffer == NULL) {
+        ESP_LOGE(TAG, "Unable to allocate space for return buffer");
+        return ESP_FAIL;
+    }
+
+    esp_http_client_config_t config = {
+            .url = GOPRO_BASEURL,
+            .method = HTTP_METHOD_GET,
+            .timeout_ms = 5 * 1000,
+            .event_handler = http_event_handle,
+            .user_data = &response_buffer
+    };
+    client = esp_http_client_init(&config);
 
     return ESP_OK;
 }
 
 
-esp_err_t gopro_http_request_with_json(char *uri, cJSON **response_data) {
+esp_err_t gopro_http_cleanup() {
+    esp_http_client_cleanup(client);
+    free(response_buffer.buffer);
+
+    return ESP_OK;
+}
+
+
+static esp_err_t gopro_http_request_with_json(char *uri, cJSON **response_data) {
     cJSON *json = NULL;
     esp_err_t result = ESP_FAIL;
 
@@ -115,29 +146,11 @@ esp_err_t gopro_http_request_with_json(char *uri, cJSON **response_data) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    char *baseurl = "http://10.5.5.9";
-    char url[strlen(baseurl) + strlen(uri) + 1];
-    strcpy(url, baseurl);
+    char url[strlen(GOPRO_BASEURL) + strlen(uri) + 1];
+    strcpy(url, GOPRO_BASEURL);
     strcat(url, uri);
 
-    response_data_t response;
-    response.buffer = malloc(2048);
-    response.buffer_size = 2048;
-
-    if (response.buffer == NULL) {
-        ESP_LOGE(TAG, "Unable to allocate space for return buffer");
-        return result;
-    }
-
-    esp_http_client_config_t config = {
-            .url = url,
-            .method = HTTP_METHOD_GET,
-            .timeout_ms = 5 * 1000,
-            .event_handler = http_event_handle,
-            .user_data = &response
-    };
-
-    esp_http_client_handle_t client = esp_http_client_init(&config);
+    esp_http_client_set_url(client, url);
 
     if (esp_http_client_perform(client) != ESP_OK) {
         ESP_LOGW(TAG, "request failed: esp_http_client_perform failed");
@@ -146,15 +159,15 @@ esp_err_t gopro_http_request_with_json(char *uri, cJSON **response_data) {
 
     int response_code = esp_http_client_get_status_code(client);
     if (response_code != 200) {
-        ESP_LOGW(TAG, "request failed: unexpected response code %d with buffer size %d", response_code, response.buffer_size);
+        ESP_LOGW(TAG, "request failed: unexpected response code %d with buffer size %d", response_code, response_buffer.buffer_size);
         goto error;
     }
 
     // HTTP_EVENT_ON_DATA handler ensures the buffer is NULL terminated
-    json = cJSON_Parse(response.buffer);
+    json = cJSON_Parse(response_buffer.buffer);
     if (json == NULL) {
         ESP_LOGW(TAG, "request failed: unable to parse JSON");
-        ESP_LOG_BUFFER_HEXDUMP(TAG, response.buffer, response.buffer_size, ESP_LOG_DEBUG);
+        ESP_LOG_BUFFER_HEXDUMP(TAG, response_buffer.buffer, response_buffer.buffer_size, ESP_LOG_DEBUG);
         goto error;
     }
 
@@ -162,38 +175,24 @@ esp_err_t gopro_http_request_with_json(char *uri, cJSON **response_data) {
     result = ESP_OK;
 
     error:
-    if (response.buffer != NULL) { free(response.buffer); }
-    esp_http_client_cleanup(client);
     return result;
 }
 
-esp_err_t gopro_http_request(char *uri) {
+static esp_err_t gopro_http_request(char *uri) {
     if (uri == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    char *baseurl = "http://10.5.5.9";
-    char url[strlen(baseurl) + strlen(uri) + 1];
-    strcpy(url, baseurl);
+    char url[strlen(GOPRO_BASEURL) + strlen(uri) + 1];
+    strcpy(url, GOPRO_BASEURL);
     strcat(url, uri);
-
-    esp_http_client_config_t config = {
-            .url = url,
-            .method = HTTP_METHOD_GET,
-            .timeout_ms = 5 * 1000,
-            .event_handler = http_event_handle,
-            .user_data = NULL
-    };
-
-    esp_http_client_handle_t client = esp_http_client_init(&config);
+    esp_http_client_set_url(client, url);
 
     if (esp_http_client_perform(client) != ESP_OK) {
-        esp_http_client_cleanup(client);
         return ESP_FAIL;
     }
 
     esp_err_t result = esp_http_client_get_status_code(client) == 200 ? ESP_OK : ESP_FAIL;
-    esp_http_client_cleanup(client);
     return result;
 }
 
@@ -239,20 +238,35 @@ esp_err_t gopro_http_get_info() {
 #define STATUS_REMAINING_FREE_BYTES "54"
 #define STATUS_PROCESSING_STATUS "8"
 
+static int64_t last_update = 0;
+static cJSON *json = NULL;
+
 esp_err_t gopro_http_get_status(gopro_internal_status_t *gopro_internal_status) {
-    if (gopro_internal_status == NULL) {
-        return gopro_http_request("/gp/gpControl/status");
+    if (esp_timer_get_time() - last_update > 500000 || json == NULL) {
+        ESP_LOGD(TAG, "Retrieving status object from device");
+        if (json != NULL) {
+            cJSON_Delete(json);
+            json = NULL;
+        }
+
+        if (gopro_http_request_with_json("/gp/gpControl/status", &json) != ESP_OK || json == NULL) {
+            ESP_LOGW(TAG, "Failed to retrieve status");
+            return ESP_FAIL;
+        }
+
+        last_update = esp_timer_get_time();
+    } else {
+        ESP_LOGD(TAG, "Retrieving status object from cache");
     }
 
-    cJSON *json = NULL;
-    if (gopro_http_request_with_json("/gp/gpControl/status", &json) != ESP_OK || json == NULL) {
-        ESP_LOGW(TAG, "Failed to retrieve status");
-        return ESP_FAIL;
+    if (gopro_internal_status == NULL) {
+        return ESP_OK;
     }
 
     cJSON *status_object = cJSON_GetObjectItem(json, "status");
     if (status_object == NULL || !cJSON_IsObject(status_object)) {
         cJSON_Delete(json);
+        json = NULL;
         return ESP_FAIL;
     }
 
@@ -288,7 +302,6 @@ esp_err_t gopro_http_get_status(gopro_internal_status_t *gopro_internal_status) 
         gopro_internal_status->processing_flag = field->valueint;
     }
 
-    cJSON_Delete(json);
     return ESP_OK;
 }
 
