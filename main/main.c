@@ -63,6 +63,7 @@ _Noreturn void app_main(void)
 
     esp_log_level_set("mavlink_uart", ESP_LOG_DEBUG);
     esp_log_level_set("mavlink_v2", ESP_LOG_DEBUG);
+    esp_log_level_set("mavlink_camera", ESP_LOG_DEBUG);
 #endif
 
     // Initialize NVS

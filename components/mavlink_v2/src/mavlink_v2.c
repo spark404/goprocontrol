@@ -20,7 +20,6 @@ mavlink_system_t mavlink_system = {
 #include "mavlink_handlers.h"
 #include "mavlink_camera.h"
 
-
 static const char *TAG = "mavlink_v2";
 static TaskHandle_t heartbeat_task;
 
@@ -41,6 +40,8 @@ uint32_t get_time_since_boot_in_ms()
 
 esp_err_t mavlink_handler_configure(mavlink_config_t mavlink_config)
 {
+    mavlink_camera_init(&(mavlink_config->camera_callbacks));
+
     TaskHandle_t task;
     xTaskCreate(mavlink_message_handler_task, "mavlink_message_handler_task", 8192, mavlink_config, 11, &task);
 
@@ -115,19 +116,19 @@ _Noreturn static void mavlink_message_handler_task(void *pvParameters)
                     switch (requested_message_id) {
                     case MAVLINK_MSG_ID_CAMERA_INFORMATION:
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
-                        mavlink_camera_send_camera_information(mavlink_config->camera_callbacks);
+                        mavlink_camera_send_camera_information();
                         break;
                     case MAVLINK_MSG_ID_CAMERA_SETTINGS:
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
-                        mavlink_camera_send_camera_settings(mavlink_config->camera_callbacks);
+                        mavlink_camera_send_camera_settings();
                         break;
                     case MAVLINK_MSG_ID_STORAGE_INFORMATION:
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
-                        mavlink_camera_send_storage_information(mavlink_config->camera_callbacks, cmd.param2);
+                        mavlink_camera_send_storage_information(cmd.param2);
                         break;
                     case MAVLINK_MSG_ID_CAMERA_CAPTURE_STATUS:
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
-                        mavlink_camera_send_camera_capture_status(mavlink_config->camera_callbacks);
+                        mavlink_camera_send_camera_capture_status();
                         break;
                     default:
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_UNSUPPORTED, 255, 0, msg.sysid, msg.compid);
@@ -137,22 +138,22 @@ _Noreturn static void mavlink_message_handler_task(void *pvParameters)
                 case MAV_CMD_REQUEST_CAMERA_INFORMATION:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_REQUEST_CAMERA_INFORMATION", cmd);
                     mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
-                    mavlink_camera_send_camera_information(mavlink_config->camera_callbacks);
+                    mavlink_camera_send_camera_information();
                     break;
                 case MAV_CMD_REQUEST_CAMERA_SETTINGS:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_REQUEST_CAMERA_SETTINGS", cmd);
                     mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
-                    mavlink_camera_send_camera_settings(mavlink_config->camera_callbacks);
+                    mavlink_camera_send_camera_settings();
                     break;
                 case MAV_CMD_REQUEST_STORAGE_INFORMATION:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_REQUEST_STORAGE_INFORMATION", cmd);
                     mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
-                    mavlink_camera_send_storage_information(mavlink_config->camera_callbacks, cmd.param2);
+                    mavlink_camera_send_storage_information(cmd.param2);
                     break;
                 case MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS", cmd);
                     mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 255, 0, msg.sysid, msg.compid);
-                    mavlink_camera_send_camera_capture_status(mavlink_config->camera_callbacks);
+                    mavlink_camera_send_camera_capture_status();
                     break;
                 case MAV_CMD_REQUEST_VIDEO_STREAM_INFORMATION:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_REQUEST_VIDEO_STREAM_INFORMATION", cmd);
@@ -160,7 +161,7 @@ _Noreturn static void mavlink_message_handler_task(void *pvParameters)
                     break;
                 case MAV_CMD_SET_CAMERA_MODE:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_SET_CAMERA_MODE", cmd);
-                    if (mavlink_camera_handle_set_mode(mavlink_config->camera_callbacks, cmd.param2) != ESP_OK) {
+                    if (mavlink_camera_handle_set_mode(cmd.param2) != ESP_OK) {
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_FAILED, 255, 0, msg.sysid, msg.compid);
                     } else {
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 0, 0, msg.sysid, msg.compid);
@@ -169,17 +170,17 @@ _Noreturn static void mavlink_message_handler_task(void *pvParameters)
                 case MAV_CMD_IMAGE_START_CAPTURE:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_IMAGE_START_CAPTURE", cmd);
                     mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 0, 0, msg.sysid, msg.compid);
-                    mavlink_camera_handle_start_capture(mavlink_config->camera_callbacks);
+                    mavlink_camera_handle_start_capture();
                     break;
                 case MAV_CMD_IMAGE_STOP_CAPTURE:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_IMAGE_STOP_CAPTURE", cmd);
                     // No support for intervals yet
                     mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 0, 0, msg.sysid, msg.compid);
-                    mavlink_camera_handle_stop_capture(mavlink_config->camera_callbacks);
+                    mavlink_camera_handle_stop_capture();
                     break;
                 case MAV_CMD_VIDEO_START_CAPTURE:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_VIDEO_START_CAPTURE", cmd);
-                    if (mavlink_camera_handle_start_video_recording(mavlink_config->camera_callbacks) == ESP_OK) {
+                    if (mavlink_camera_handle_start_video_recording() == ESP_OK) {
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 0, 0, msg.sysid, msg.compid);
                     } else {
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_FAILED, 0, 0,
@@ -188,12 +189,22 @@ _Noreturn static void mavlink_message_handler_task(void *pvParameters)
                     break;
                 case MAV_CMD_VIDEO_STOP_CAPTURE:
                     MAV_LOG_CMDD(TAG, "MAV_CMD_VIDEO_STOP_CAPTURE", cmd);
-                    if (mavlink_camera_handle_stop_video_recording(mavlink_config->camera_callbacks) == ESP_OK) {
+                    if (mavlink_camera_handle_stop_video_recording() == ESP_OK) {
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 0, 0, msg.sysid, msg.compid);
                     } else {
                         mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_FAILED, 0, 0,
                                                      msg.sysid, msg.compid);
                     }
+                    break;
+                case MAV_CMD_DO_DIGICAM_CONTROL:
+                    MAV_LOG_CMDD(TAG, "MAV_CMD_DO_DIGICAM_CONTROL", cmd);
+                    mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 0, 0, msg.sysid, msg.compid);
+                    mavlink_camera_handle_digicam_control(cmd.param1, cmd.param2, cmd.param3, cmd.param4, cmd.param5, cmd.param6, cmd.param7);
+                    break;
+                case MAV_CMD_DO_DIGICAM_CONFIGURE:
+                    MAV_LOG_CMDD(TAG, "MAV_CMD_DO_DIGICAM_CONFIGURE", cmd);
+                    mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_ACCEPTED, 0, 0, msg.sysid, msg.compid);
+                    mavlink_camera_handle_digicam_configure(cmd.param1, cmd.param2, cmd.param3, cmd.param4, cmd.param5, cmd.param6, cmd.param7);
                     break;
                 default:
                     mavlink_msg_command_ack_send(MAVLINK_COMM_0, cmd.command, MAV_RESULT_UNSUPPORTED, 255, 0, msg.sysid, msg.compid);

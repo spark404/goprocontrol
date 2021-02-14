@@ -126,5 +126,19 @@ class CameraTests(unittest.TestCase):
             vendor += chr(x)
         self.assertEqual(vendor, "GoPro")
 
+    def test_message_digicam_control(self):
+        self.camera.mav.command_long_send(
+            self.camera.target_system,
+            self.camera.target_component,
+            mavlink2.MAV_CMD_DO_DIGICAM_CONTROL,
+            0,
+            0, 0, 0, 0, 1, 0, 0)
+
+        ack_msg = self.camera.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
+        self.assertIsNotNone(ack_msg, "No message received before timeout")
+        ack_msg = ack_msg.to_dict()
+        self.assertEqual(ack_msg['command'], mavutil.mavlink.MAV_CMD_DO_DIGICAM_CONTROL)
+        self.assertEqual(ack_msg['result'], 0)
+
 if __name__ == '__main__':
     unittest.main()
